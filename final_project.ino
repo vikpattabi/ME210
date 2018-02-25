@@ -66,10 +66,10 @@ void loop() {
 }
 
 void checkGlobalEvents(void) {
-  if (testForCorner()) respToCorner();
-  if (testForGrey()) respToGrey();
-  if (testForTurnDone()) respToTurnDone();
-  if(testForFrontWall()) respToFrontWall();
+  if (state == FORWARD && testForGrey()) respToGrey();
+  if (state == FORWARD && testForCorner()) respToCorner();
+  if (state == TURN && testForTurnDone()) respToTurnDone();
+  if(state == FORWARD && testForFrontWall()) respToFrontWall();
 }
 
 
@@ -94,6 +94,8 @@ void calibrateBlack(void){
 void moveForward(void){
   int right = analogRead(RIGHT_TAPE);
   int left = analogRead(LEFT_TAPE);
+
+  //write to motors - forward
 
   if (right > BLACK_THRESH && left > BLACK_THRESH){
     Serial.println("We fucked up.");
@@ -134,7 +136,7 @@ void finishGame(void){
 bool testForCorner(void){
   //tape sensor black
   int far_right = analogRead(FAR_RIGHT_TAPE);
-  if (far_right > BLACK_THRESH && state = FORWARD){
+  if (far_right > BLACK_THRESH){
     return true;
   }
   return false;
@@ -148,7 +150,7 @@ void respToCorner(void){
 
 bool testForTurnDone(void){
   int far_right = analogRead(FAR_RIGHT_TAPE);
-  if (far_right > BLACK_THRESH && state = TURN){
+  if (far_right > BLACK_THRESH){
     return true;
   }
   return false;
