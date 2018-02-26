@@ -103,7 +103,7 @@ void loop() {
 }
 
 void checkGlobalEvents(void) {  //TO-DO delete this?
-  
+
 }
 
 
@@ -155,9 +155,8 @@ void calibrateGrey(void){
   }
   delay(500);
   //if(testForKey()){
-    int right = analogRead(RIGHT_TAPE);
     int left = analogRead(LEFT_TAPE);
-    GREY_THRESH = right;
+    GREY_THRESH = left;
     Serial.println(GREY_THRESH);
     state = FORWARD;
     while(true){
@@ -182,14 +181,14 @@ void moveForward(void){
     analogWrite(MOTOR1_RPWM, 0);
 
     analogWrite(MOTOR2_LPWM, 100);
-    analogWrite(MOTOR2_RPWM, 0);  
+    analogWrite(MOTOR2_RPWM, 0);
   } else if (right > BLACK_THRESH && left < WHITE_THRESH){
     //Turn right
     analogWrite(MOTOR1_LPWM, 100);
     analogWrite(MOTOR1_RPWM, 0);
 
     analogWrite(MOTOR2_LPWM, 90);
-    analogWrite(MOTOR2_RPWM, 0);  
+    analogWrite(MOTOR2_RPWM, 0);
   } else if (right < WHITE_THRESH && left > BLACK_THRESH){
     //Turn left
     analogWrite(MOTOR1_LPWM, 90);
@@ -269,9 +268,9 @@ void respToTurnDone(void){
 
 bool testForGrey(void){
   //tape sensor grey
-  int right = analogRead(RIGHT_TAPE);
-  if (right > GREY_THRESH - 50 && right < GREY_THRESH + 50 && onGrey == false){ //TO-DO is this hystereses right?
-    greyCounter++; 
+  int left = analogRead(LEFT_TAPE);
+  if (left > GREY_THRESH - 50 && left < GREY_THRESH + 50 && onGrey == false){ //TO-DO is this hystereses right?
+    greyCounter++;
     onGrey = true;  //only increment the first time (what is this?)
     return true;
   }
