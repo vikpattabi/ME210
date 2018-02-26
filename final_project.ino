@@ -12,8 +12,11 @@
 #define BUTTON_PIN 12
 #define LED_PIN 13
 
+#define HIGH_SPEED 100
+#define LOW_SPEED 70
+
 /*---------------Timer Constants--------------------------*/
-#define BOT_SETTLE_TIME 500000
+#define BOT_SETTLE_TIME 1000000
 #define BALL_RELEASE_TIME 2000000
 #define CRAWL_TIME 1000000
 
@@ -21,6 +24,10 @@
 typedef enum {
   CAL_WHITE, CAL_BLACK, CAL_GREY, FORWARD, STOP_WAIT, DEPOSIT_BALL, TURN, BLIND_CRAWL, FINISH
 } States_t;
+
+typedef enum {
+  RIGHT, LEFT
+} Motor_t;
 
 volatile States_t state;
 
@@ -47,12 +54,13 @@ void setup() {
   pinMode(MOTOR2_LPWM, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);
+  //digitalWrite(LED_PIN, HIGH);
   ballServo.attach(SERVO_CONTROL);
   ballServo.write(90);
   delay(1000); //TO-DO fix this?
   greyCounter = 0;
   onGrey = false;
+  botSettled = false;
   crossingSides = false;
   state = CAL_WHITE;
   Serial.begin(9600);
@@ -68,7 +76,6 @@ unsigned char testForKey(void){
 
 void loop() {
   checkGlobalEvents(); //TO-DO delete this?
-
   switch (state) {
     case CAL_WHITE:
       calibrateWhite();
@@ -80,6 +87,7 @@ void loop() {
       calibrateGrey();
       break;
     case FORWARD:
+      //digitalWrite(LED_PIN, LOW);
       moveForward();
       break;
     case STOP_WAIT:
@@ -154,21 +162,39 @@ void calibrateGrey(void){
     delay(10);
   }
   delay(500);
-  //if(testForKey()){
-    int left = analogRead(LEFT_TAPE);
-    GREY_THRESH = left;
-    Serial.println(GREY_THRESH);
-    state = FORWARD;
-    while(true){
-      if(!digitalRead(BUTTON_PIN)){
-        break;
-      }
-      delay(10);
+  int right = analogRead(FAR_RIGHT_TAPE);
+  GREY_THRESH = right;
+  Serial.println(GREY_THRESH);
+  state = FORWARD;
+  
+  while(true){
+    if(!digitalRead(BUTTON_PIN)){
+      break;
     }
-    Serial.println("Calib grey done");
-    delay(2000); //TO-DO remove this
-    setMotorsForward();
-  //}
+    delay(10);
+  }
+  Serial.println("Calib grey done");
+  delay(2000); //TO-DO remove this
+}
+
+void runMotor(Motor_t mot, int speed){
+  if(mot == RIGHT){
+    if(speed > 0){
+      analogWrite(MOTOR2_LPWM, speed);
+      analogWrite(MOTOR2_RPWM, 0);
+    } else {
+      analogWrite(MOTOR2_LPWM, 0);
+      analogWrite(MOTOR2_RPWM, speed); 
+    }
+  } else if(mot == LEFT){
+    if(speed > 0){
+      analogWrite(MOTOR1_LPWM, speed);
+      analogWrite(MOTOR1_RPWM, 0);
+    } else {
+      analogWrite(MOTOR1_LPWM, 0);
+      analogWrite(MOTOR1_RPWM, speed); 
+    }
+  }
 }
 
 void moveForward(void){
@@ -177,28 +203,21 @@ void moveForward(void){
 
   if(right < WHITE_THRESH && left < WHITE_THRESH){
     //Both on white, go forward
-    analogWrite(MOTOR1_LPWM, 100);
-    analogWrite(MOTOR1_RPWM, 0);
-
-    analogWrite(MOTOR2_LPWM, 100);
-    analogWrite(MOTOR2_RPWM, 0);
+    runMotor(RIGHT, HIGH_SPEED);
+    runMotor(LEFT, HIGH_SPEED); 
   } else if (right > BLACK_THRESH && left < WHITE_THRESH){
     //Turn right
-    analogWrite(MOTOR1_LPWM, 100);
-    analogWrite(MOTOR1_RPWM, 0);
-
-    analogWrite(MOTOR2_LPWM, 90);
-    analogWrite(MOTOR2_RPWM, 0);
+    runMotor(LEFT, HIGH_SPEED);
+    runMotor(RIGHT, LOW_SPEED); 
   } else if (right < WHITE_THRESH && left > BLACK_THRESH){
     //Turn left
-    analogWrite(MOTOR1_LPWM, 90);
-    analogWrite(MOTOR1_RPWM, 0);
-
-    analogWrite(MOTOR2_LPWM, 100);
-    analogWrite(MOTOR2_RPWM, 0);
+    runMotor(RIGHT, HIGH_SPEED);
+    runMotor(LEFT, LOW_SPEED); 
   }
 
-  if (testForGrey()) respToGrey();
+  if (testForGrey()){
+    respToGrey();
+  }
 //  if (testForOrthogLine()) { //TO-DO re enable this
 //    if (crossingSides) {
 //      respToGarage();
@@ -268,23 +287,25 @@ void respToTurnDone(void){
 
 bool testForGrey(void){
   //tape sensor grey
-  int left = analogRead(LEFT_TAPE);
-  if (left > GREY_THRESH - 50 && left < GREY_THRESH + 50 && onGrey == false){ //TO-DO is this hystereses right?
-    greyCounter++;
-    onGrey = true;  //only increment the first time (what is this?)
-    return true;
+  int right = analogRead(FAR_RIGHT_TAPE);
+  if (right > GREY_THRESH - 30 && right < GREY_THRESH + 30){ //TO-DO is this hystereses right?
+    if(!onGrey){
+      greyCounter++;
+      onGrey = true;  //only increment the first time (what is this?)
+      return true;
+    }
+    return false;
   }
-  else{
-    onGrey = false;
-  }
+
+  onGrey = false;
   return false;
 }
 
 void respToGrey(void){
   if (greyCounter == 1 || greyCounter == 3){  //hit funding A or B
     setMotorsOff();
-    settleDownTimer.begin(doneSettling, BOT_SETTLE_TIME);
     state = STOP_WAIT;
+    settleDownTimer.begin(doneSettling, BOT_SETTLE_TIME);
   }
 }
 
@@ -296,6 +317,7 @@ void doneSettling(void) {
 void ballsDeposited(void) {
   ballsReleaseTimer.end();
   state = FORWARD;
+  digitalWrite(LED_PIN, HIGH);
 }
 
 void doneCrawling(void) {
@@ -313,6 +335,7 @@ void servoRelease(void) {
   delay(1000); //TO-DO no blocking lol
 }
 
+//TODO: Redefine this with the powerMotor function.
 void setMotorsForward(void) {
   analogWrite(MOTOR1_RPWM, 0);
   analogWrite(MOTOR2_RPWM, 0);
@@ -321,10 +344,10 @@ void setMotorsForward(void) {
 }
 
 void setMotorsOff(void) {
-  digitalWrite(MOTOR1_RPWM, LOW);
-  digitalWrite(MOTOR2_RPWM, LOW);
-  digitalWrite(MOTOR1_LPWM, LOW);
-  digitalWrite(MOTOR2_LPWM, LOW);
+  analogWrite(MOTOR1_RPWM, 0);
+  analogWrite(MOTOR2_RPWM, 0);
+  analogWrite(MOTOR1_LPWM, 0);
+  analogWrite(MOTOR2_LPWM, 0);
 }
 
 void setMotorsTurn(void) {
@@ -335,8 +358,8 @@ void setMotorsTurn(void) {
 }
 
 void setMotorsCrawl(void) {
-  digitalWrite(MOTOR1_RPWM, LOW);
-  digitalWrite(MOTOR2_RPWM, LOW);
+  analogWrite(MOTOR1_RPWM, 0);
+  analogWrite(MOTOR2_RPWM, 0);
   analogWrite(MOTOR1_LPWM, 50);
   analogWrite(MOTOR2_LPWM, 50);
 }
