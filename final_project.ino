@@ -3,6 +3,8 @@
 /*---------------Pin Designations and Constants--------------------------*/
 #define RIGHT_TAPE A2
 #define LEFT_TAPE A1
+#define RIGHT_TAPE_BACK A3
+#define LEFT_TAPE_BACK A0
 #define FAR_RIGHT_TAPE A4
 #define SERVO_CONTROL A5
 #define MOTOR1_RPWM A6
@@ -13,20 +15,20 @@
 #define LED_PIN 13
 
 #define SERVO_CENTER 80
-#define HIGH_SPEED 70
-#define LOW_SPEED 50
+#define HIGH_SPEED 90  //210 max
+#define LOW_SPEED 60
 
 /*---------------Timer Constants--------------------------*/
-#define BOT_SETTLE_TIME 1000000
 #define BALL_RELEASE_TIME 2000000
 #define CRAWL_TIME 250000
+#define BOT_HAMMER_TIME 500000
 
 /*---------------State Definitions--------------------------*/
 typedef enum {
-  CAL_WHITE, CAL_BLACK, CAL_GREY, FORWARD, STOP_WAIT, TURN, BLIND_CRAWL, FINISH
+  CAL_BLACK, CAL_GREY, FORWARD, REVERSE, STOP_WAIT, TURN, BLIND_CRAWL, FINISH, STOP_WAIT_HAMMER
 } States_t;
 
-char* stateNames[8] = {"CAL_WHITE", "CAL_BLACK", "CAL_GREY", "FORWARD", "STOP_WAIT", "TURN", "BLIND_CRAWL", "FINISH"};
+char* stateNames[9] = {"CAL_BLACK", "CAL_GREY", "FORWARD", "REVERSE","STOP_WAIT", "TURN", "BLIND_CRAWL", "FINISH","STOP_WAIT_HAMMER"};
 
 typedef enum {
   RIGHT, LEFT
@@ -36,16 +38,17 @@ volatile States_t state;
 
 /*---------------Module Variables and Objects--------------------------*/
 int tape;
-int BLACK_THRESH = 775;
+int BLACK_THRESH = 800;
 int GREY_THRESH = 530;
-int WHITE_THRESH = 870;
 int greyCounter;
 bool onGrey;
 bool crossingSides;
 volatile bool botSettled;
+bool CALIBRATE = false;
 IntervalTimer settleDownTimer;
 IntervalTimer ballsReleaseTimer;
 IntervalTimer crawlTimer;
+IntervalTimer hammerTime;
 Servo ballServo;
 
 void setup() {
@@ -65,9 +68,11 @@ void setup() {
   onGrey = false;
   botSettled = false;
   crossingSides = false;
-  state = CAL_WHITE;
+  state = CAL_BLACK;
   Serial.begin(9600);
-  Serial.println("Type a key to record white threshold.");
+  Serial.println("Type a key to record black threshold.");
+  pinMode(13, OUTPUT);
+  digitalWrite(13,HIGH);
 }
 
 unsigned char testForKey(void){
@@ -78,11 +83,7 @@ unsigned char testForKey(void){
 }
 
 void loop() {
-  checkGlobalEvents(); //TO-DO delete this?
   switch (state) {
-    case CAL_WHITE:
-      calibrateWhite();
-      break;
     case CAL_BLACK:
       calibrateBlack();
       break;
@@ -93,6 +94,9 @@ void loop() {
       //digitalWrite(LED_PIN, LOW);
       moveForward();
       break;
+    case REVERSE:
+      moveBackward();
+      break;
     case STOP_WAIT:
       stopAndWait();
       break;
@@ -101,80 +105,61 @@ void loop() {
       break;
     case BLIND_CRAWL:
       crawlForward(); //TO-DO delete this?
+      break;
     case FINISH:
+      setMotorsOff();
       finishGame(); //TO-DO delete this
+      break;
+    case STOP_WAIT_HAMMER:
+      stopAndWaitHammer();
       break;
     default:    // Should never get into an unhandled state
       Serial.println("What is this I do not even...");
   }
 }
 
-void checkGlobalEvents(void) {  //TO-DO delete this?
-
-}
-
 void changeState(States_t newState){
   state = newState;
-//  CAL_WHITE, CAL_BLACK, CAL_GREY, FORWARD, STOP_WAIT, DEPOSIT_BALL, TURN, BLIND_CRAWL, FINISH
   Serial.println(stateNames[newState]);
-}
-
-
-void calibrateWhite(void){
-  Serial.println("Calib white");
-  // hacked way to avoid calibration
-//  while(true){
-//    if(!digitalRead(BUTTON_PIN)){
-//      break;
-//    }
-//    delay(10);
-//  }
-  delay(500);
- // if(testForKey()){
-    int right = analogRead(RIGHT_TAPE);
-    int left = analogRead(LEFT_TAPE);
-//    WHITE_THRESH = max(right, left) + 20;
-    Serial.println(WHITE_THRESH);
-    changeState(CAL_BLACK);
-    Serial.println("Calib white done");
-//  }
 }
 
 void calibrateBlack(void){
   Serial.println("Calib black");
 // hacked way to avoid calibration
+  if (CALIBRATE){
+    while(true){
+      if(!digitalRead(BUTTON_PIN)){
+        break;
+      }
+      delay(10);
+    }
+    delay(500);
 
-//  while(true){
-//    if(!digitalRead(BUTTON_PIN)){
-//      break;
-//    }
-//    delay(10);
-//  }
-  delay(500);
-  //if(testForKey()){
     int right = analogRead(RIGHT_TAPE);
     int left = analogRead(LEFT_TAPE);
-//    BLACK_THRESH = min(right, left) - 50;
-    Serial.println(BLACK_THRESH);
-    Serial.println("Calib black done");
-    changeState(CAL_GREY);
-  //}
+    BLACK_THRESH = min(right, left) - 75;
+  }
+  Serial.println(BLACK_THRESH);
+  Serial.println("Calib black done");
+  changeState(CAL_GREY);
 }
 
 void calibrateGrey(void){
   Serial.println("Calib grey");
 // hacked way to avoid calibration
-
-//  while(true){
-//    if(!digitalRead(BUTTON_PIN)){
-//      break;
-//    }
-//    delay(10);
-//  }
+  if(CALIBRATE){
+    while(true){
+      if(!digitalRead(BUTTON_PIN)){
+        break;
+      }
+      delay(10);
+    }
+  }
   delay(500);
   int right = analogRead(FAR_RIGHT_TAPE);
-//  Serial.println(GREY_THRESH);
-  changeState(FORWARD);
+  Serial.println(GREY_THRESH);
+//  changeState(FORWARD);
+  changeState(REVERSE);
   
   while(true){
     if(!digitalRead(BUTTON_PIN)){
@@ -193,7 +178,7 @@ void runMotor(Motor_t mot, int speed){
       analogWrite(MOTOR2_RPWM, 0);
     } else {
       analogWrite(MOTOR2_LPWM, 0);
-      analogWrite(MOTOR2_RPWM, speed); 
+      analogWrite(MOTOR2_RPWM, -speed); 
     }
   } else if(mot == LEFT){
     if(speed > 0){
@@ -201,7 +186,7 @@ void runMotor(Motor_t mot, int speed){
       analogWrite(MOTOR1_RPWM, 0);
     } else {
       analogWrite(MOTOR1_LPWM, 0);
-      analogWrite(MOTOR1_RPWM, speed); 
+      analogWrite(MOTOR1_RPWM, -speed); 
     }
   }
 }
@@ -209,15 +194,15 @@ void runMotor(Motor_t mot, int speed){
 void moveForward(void){
   int right = analogRead(RIGHT_TAPE);
   int left = analogRead(LEFT_TAPE);
-  if((right < WHITE_THRESH && left < WHITE_THRESH) ){
+  if((right < BLACK_THRESH && left < BLACK_THRESH) ){
     //Both on white, go forward
     runMotor(RIGHT, HIGH_SPEED);
     runMotor(LEFT, HIGH_SPEED); 
-  } else if (right > BLACK_THRESH && left < WHITE_THRESH){
+  } else if (right > BLACK_THRESH && left < BLACK_THRESH){
     //Turn right
     runMotor(LEFT, HIGH_SPEED);
     runMotor(RIGHT, LOW_SPEED); 
-  } else if (right < WHITE_THRESH && left > BLACK_THRESH){
+  } else if (right < BLACK_THRESH && left > BLACK_THRESH){
     //Turn left
     runMotor(RIGHT, HIGH_SPEED);
     runMotor(LEFT, LOW_SPEED); 
@@ -226,10 +211,6 @@ void moveForward(void){
     runMotor(RIGHT, HIGH_SPEED);
     runMotor(LEFT, HIGH_SPEED); 
   }
-//  Serial.print("Right: ");
-//  Serial.println(right);
-//  Serial.print("Left: ");
-//  Serial.println(left);
 
   if (testForGrey()){
     respToGrey();
@@ -243,13 +224,39 @@ void moveForward(void){
   }
 }
 
-void stopAndWait(void){
-  if (botSettled) {
-    botSettled = false;
-    dropBall();
-    ballsReleaseTimer.begin(ballsDeposited, BALL_RELEASE_TIME);
-//    changeState(DEPOSIT_BALL);
+void moveReverse(void){
+  int right = analogRead(RIGHT_TAPE_BACK);
+  int left = analogRead(LEFT_TAPE_BACK);
+  if((right < BLACK_THRESH && left < BLACK_THRESH) ){
+    //Both on white, go forward
+    runMotor(RIGHT, -HIGH_SPEED);
+    runMotor(LEFT, -HIGH_SPEED); 
+  } else if (right > BLACK_THRESH && left < BLACK_THRESH){
+    //Turn right
+    Serial.println("Left motor high reverse");
+    runMotor(LEFT, -HIGH_SPEED);
+    runMotor(RIGHT, -LOW_SPEED); 
+  } else if (right < BLACK_THRESH && left > BLACK_THRESH){
+    //Turn left
+    Serial.println("Right motor high reverse");
+    runMotor(RIGHT, -HIGH_SPEED);
+    runMotor(LEFT, -LOW_SPEED); 
+  } else {      // we dont know what we're on so move forward slowly
+    //Serial.println("we are in an unknown state");
+    runMotor(RIGHT, HIGH_SPEED);
+    runMotor(LEFT, HIGH_SPEED); 
   }
+
+ //respond to reload area
+}
+
+void stopAndWaitHammer(void){
+}
+
+
+void stopAndWait(void){
+    dropBall();
+//    changeState(DEPOSIT_BALL);
 }
 
 void turnToGate(void){
@@ -277,7 +284,6 @@ void respToCorner(void){
   changeState(TURN);
   setMotorsTurn();
   delay(400);
-
 }
 
 void respToGarage(void) {
@@ -293,6 +299,7 @@ bool testForTurnDone(void){
     return true;
   }
   return false;
+}
 
 void respToTurnDone(void){
   setMotorsForward();
@@ -322,16 +329,34 @@ bool testForGrey(void){
 }
 
 void respToGrey(void){
-  if (greyCounter == 1 || greyCounter == 3){  //hit funding A or B
+//  if (greyCounter == 1 || greyCounter == 3){  //hit funding A or B
+  if (greyCounter == 2){  //hit funding A or B
     setMotorsOff();
     changeState(STOP_WAIT);
-    settleDownTimer.begin(doneSettling, BOT_SETTLE_TIME);
+    ballsReleaseTimer.begin(ballsDeposited, BALL_RELEASE_TIME);
+
+  }
+  else if (greyCounter == 1){
+    setMotorsOff();
+    changeState(STOP_WAIT_HAMMER);
+    hammerTime.begin(doneHammering, BOT_HAMMER_TIME);
+  }
+  //reverse
+  else if (greyCounter == 3){
+    setMotorsOff();
+    changeState(STOP_WAIT_HAMMER);
+    hammerTime.begin(doneHammering, BOT_HAMMER_TIME);
   }
 }
 
-void doneSettling(void) {
-  settleDownTimer.end();
-  botSettled = true;
+void doneHammering(void){
+  hammerTime.end();
+  //Change state again?
+  if (greyCounter == 3){
+    changeState(REVERSE);
+  }else{
+    changeState(FORWARD);
+  }
 }
 
 void ballsDeposited(void) {
@@ -347,12 +372,12 @@ void doneCrawling(void) {
 }
 
 void dropBall(void) {
-  if (greyCounter == 1) {
-    ballServo.write(SERVO_CENTER-30);
-  } else {
-    ballServo.write(SERVO_CENTER+20);
+  if (greyCounter == 2) {
+    ballServo.write(SERVO_CENTER+25);
   }
-//  delay(1000); //TO-DO no blocking lol
+//  } else {
+//    ballServo.write(SERVO_CENTER+30);
+//  }
 }
 
 //TODO: Redefine this with the powerMotor function.
