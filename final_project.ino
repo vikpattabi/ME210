@@ -31,14 +31,14 @@
 #define Y_START_TO_MIDDLE 58.97 //7.45
 #define Y_START_TO_B 77.5 //9.79
 #define X_SENSOR_TO_BEACON 12
-#define BOOTY_BUMP_DIST 7.5
-#define ROTATION_VAL 2 //TODO - pick this.
+#define BOOTY_BUMP_DIST 5.5
+#define ROTATION_VAL 2.25 //TODO - pick this.
 
 /*---------------Timer Constants--------------------------*/
 #define BALL_RELEASE_TIME 1500000
 #define BOT_HAMMER_TIME 3000000
 #define GREY_READ_TIME 2000
-#define RELOAD_TIME 1000000
+#define RELOAD_TIME 1500000
 #define GAME_END_TIME 129000000
 
 const float pi = 3.14;
@@ -473,11 +473,7 @@ void respToGrey(void){
     ballsReleaseTimer.begin(ballsDeposited, BALL_RELEASE_TIME);
     runMotor(RIGHT,0);
     runMotor(LEFT,0);
-    if(readingFromBeacons){
-      targetGreyCounter = 1;
-    } else {
-      targetGreyCounter = 3;
-    }
+    targetGreyCounter = 3;
   }
   else if (greyCounter == 1 && targetGreyCounter == 1){ //PUSH DOWN A
     if (readingFromBeacons){
@@ -499,7 +495,7 @@ void respToGrey(void){
     runMotor(RIGHT,0);
     runMotor(LEFT,0);
     if(readingFromBeacons){
-      targetGreyCounter = 2;
+      targetGreyCounter = 1;
     } else {
       targetGreyCounter = 0;
     }
@@ -544,11 +540,7 @@ void doneHammering(void){
 
 void ballsDeposited(void) {
   ballsReleaseTimer.end();
-  if (!readingFromBeacons){
-    changeState(FORWARD);
-  }else{
-    changeState(REVERSE);
-  }
+  changeState(FORWARD);
   digitalWrite(LED_PIN, HIGH);
   ballServo.write(SERVO_CENTER-5);
 
@@ -584,7 +576,7 @@ void bootyBumpReturn(){
     reloadTimer.begin(doneReloading, RELOAD_TIME);
     runMotor(RIGHT,0);
     runMotor(LEFT,0);
-    targetGreyCounter = 3;
+    targetGreyCounter = 2;
     reload_toggled = false;
   }
 }
