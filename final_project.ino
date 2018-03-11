@@ -23,8 +23,8 @@
 #define HAMMER_SERVO 7
 
 #define SERVO_CENTER 60
-#define HIGH_SPEED 120  //210 max
-#define LOW_SPEED  90
+#define HIGH_SPEED 160  //210 max
+#define LOW_SPEED  130
 
 /*---------------Beacon Tracker Constants--------------------------*/
 #define Y_START_TO_A 41.16 //5.2
@@ -37,7 +37,7 @@
 /*---------------Timer Constants--------------------------*/
 #define BALL_RELEASE_TIME 1500000
 #define BOT_HAMMER_TIME 3000000
-#define GREY_READ_TIME 1000
+#define GREY_READ_TIME 2000
 #define RELOAD_TIME 1000000
 #define GAME_END_TIME 129000000
 
@@ -45,10 +45,10 @@ const float pi = 3.14;
 
 /*---------------State Definitions--------------------------*/
 typedef enum {
-  CAL_BLACK, CAL_GREY, FORWARD, REVERSE, STOP_WAIT, FINISH, STOP_WAIT_HAMMER, BOOTY_BUMP, BOOTY_BUMP_RETURN
+  CAL_BLACK, CAL_GREY, FORWARD, REVERSE, STOP_WAIT, FINISH, STOP_WAIT_HAMMER, BOOTY_BUMP, BOOTY_BUMP_RETURN, DRIVE_TO_BOX, WAITING_TO_START
 } States_t;
 
-char* stateNames[9] = {"CAL_BLACK", "CAL_GREY", "FORWARD", "REVERSE","STOP_WAIT", "FINISH","STOP_WAIT_HAMMER","BOOTY_BUMP", "BOOTY_BUMP_RETURN"};
+char* stateNames[11] = {"CAL_BLACK", "CAL_GREY", "FORWARD", "REVERSE","STOP_WAIT", "FINISH","STOP_WAIT_HAMMER","BOOTY_BUMP", "BOOTY_BUMP_RETURN", "DRIVE_TO_BOX", "WAITING_TO_START"};
 
 typedef enum {
   RIGHT, LEFT
@@ -59,7 +59,7 @@ volatile States_t state;
 /*---------------Module Variables and Objects--------------------------*/
 int tape;
 int BLACK_THRESH = 700;
-int GREY_THRESH = 530;
+int GREY_THRESH = 500;
 int greyCounter;
 bool onGrey;
 bool CALIBRATE_TOGGLE = false;
@@ -99,7 +99,6 @@ void setup() {
   servoA.write(SERVO_CENTER);
   hammerServo.attach(HAMMER_SERVO);
   hammerServo.write(10);
-  readGreyTimer.begin(testForGrey, GREY_READ_TIME);
   endGameTimer.begin(finishGameTimer,GAME_END_TIME);
   greyHistory.clear();
 
@@ -116,6 +115,7 @@ void setup() {
   
   Wire.begin();
   encoder.init((2.0/3.0)*MOTOR_393_SPEED_ROTATIONS, MOTOR_393_TIME_DELTA);
+  readGreyTimer.begin(testForGrey, GREY_READ_TIME);
 }
 
 unsigned char testForKey(void){
@@ -129,49 +129,49 @@ void loop() {
 
   checkEncoders();  //function to count/keep track of encoder distance
   trackBeacon();
-  Serial.println(digitalRead(BUTTON_PIN));
-//  Serial.print("RIGHT: ");
-//  Serial.print(digitalRead(RIGHT_BEACON_PIN));
-//  Serial.print(" LEFT: ");
-//  Serial.println(digitalRead(LEFT_BEACON_PIN));
-//  delay(10);
-//  if (readingFromBeacons && (state == REVERSE || state == FORWARD)){
-////    checkBeaconValue();
-//  }
-//  switch (state) {
-//    case CAL_BLACK:
-//      calibrateBlack();
-//      break;
-//    case CAL_GREY:
-//      calibrateGrey();
-//      break;
-//    case FORWARD:
-//      //digitalWrite(LED_PIN, LOW);
-//      moveForward();
-//      break;
-//    case REVERSE:
-//      moveReverse();
-//      break;
-//    case STOP_WAIT:
-//      stopAndWait();
-//      break;
-//    case STOP_WAIT_HAMMER:
-//      stopAndWaitHammer();
-//      break;
-//    case BOOTY_BUMP:
-//      bootyBump();
-//      break;
-//    case BOOTY_BUMP_RETURN:
-//      bootyBumpReturn();
-//      break;
-//    case FINISH:
-//      runMotor(RIGHT,0);
-//      runMotor(LEFT,0);
-//      finishGame(); //TO-DO delete this
-//      break;
-//    default:    // Should never get into an unhandled state
-//      Serial.println("What is this I do not even..."); 
-//  }
+  if (readingFromBeacons && (state == REVERSE || state == FORWARD)){
+//    checkBeaconValue();
+  }
+  switch (state) {
+    case CAL_BLACK:
+      calibrateBlack();
+      break;
+    case CAL_GREY:
+      calibrateGrey();
+      break;
+    case DRIVE_TO_BOX:
+      driveToBox();
+      break;
+    case WAITING_TO_START:
+      waitToStart();
+      break;
+    case FORWARD:
+      //digitalWrite(LED_PIN, LOW);
+      moveForward();
+      break;
+    case REVERSE:
+      moveReverse();
+      break;
+    case STOP_WAIT:
+      stopAndWait();
+      break;
+    case STOP_WAIT_HAMMER:
+      stopAndWaitHammer();
+      break;
+    case BOOTY_BUMP:
+      bootyBump();
+      break;
+    case BOOTY_BUMP_RETURN:
+      bootyBumpReturn();
+      break;
+    case FINISH:
+      runMotor(RIGHT,0);
+      runMotor(LEFT,0);
+      finishGame(); //TO-DO delete this
+      break;
+    default:    // Should never get into an unhandled state
+      Serial.println("What is this I do not even..."); 
+  }
 }
 
 /*---------------Calibration--------------------------*/
@@ -210,8 +210,8 @@ void calibrateGrey(void){
   }
   delay(500);
   int right = analogRead(FAR_RIGHT_TAPE);
-  Serial.println(GREY_THRESH);
-  changeState(FORWARD);
+  Serial.println(right);
+  changeState(DRIVE_TO_BOX);
 //  changeState(REVERSE);
   
   while(true){
@@ -221,7 +221,18 @@ void calibrateGrey(void){
     delay(10);
   }
   Serial.println("Calib grey done");
-  delay(2000); //TO-DO remove this
+  delay(500); //TO-DO remove this
+}
+
+void waitToStart(){
+  while(true){
+    if(!digitalRead(BUTTON_PIN)){
+      break;
+    }
+    delay(10);
+  }
+  changeState(FORWARD);
+  delay(1000); //TO-DO remove this
 }
 
 /*---------------Global Checks--------------------------*/
@@ -266,6 +277,36 @@ void checkBeaconValue(){
     //do something different for this state?
     Serial.println("what to do if we are losing both?");
     //go to closer one!
+  }
+}
+
+void driveToBox(){
+  int right = analogRead(RIGHT_TAPE);
+  int left = analogRead(LEFT_TAPE);
+  if((right < BLACK_THRESH && left < BLACK_THRESH) ){
+    //Both on white, go forward
+    runMotor(RIGHT, 60);
+    runMotor(LEFT, 60); 
+  } else if (right > BLACK_THRESH && left < BLACK_THRESH){
+    //Turn right
+    runMotor(LEFT, 60);
+    runMotor(RIGHT, 30); 
+  } else if (right < BLACK_THRESH && left > BLACK_THRESH){
+    //Turn left
+    runMotor(RIGHT, 60);
+    runMotor(LEFT, 30); 
+  } else {      // we dont know what we're on so move forward slowly
+    //Serial.println("we are in an unknown state");
+    runMotor(RIGHT, 60);
+    runMotor(LEFT, 60); 
+  }
+
+  double distance = encoder.getPosition();
+  double distance_inches = map(distance,0,10,0,79.162); //Hard Coded translation of encoder distance to inches
+  if(distance_inches > 23){
+    runMotor(LEFT, 0);
+    runMotor(RIGHT, 0);
+    changeState(WAITING_TO_START);
   }
 }
 
@@ -401,17 +442,16 @@ void testForGrey(void){
     }
     
     if (pastTenGrey){ //TO-DO is this hystereses right?
-//      Serial.print("FOUND GREY LINE, GREY COUNTER = ");
-//      Serial.println(greyCounter);
-//      Serial.print(" Threshold is: ");
-//      Serial.println(right);
-  
       if(!onGrey){
-        if (state == FORWARD){
-          greyCounter++;
-        }
-        else if (state == REVERSE){
-          greyCounter --;
+        if(greyCounter == -1){
+          greyCounter = 3;
+        } else {
+          if (state == FORWARD){
+            greyCounter++;
+          }
+          else if (state == REVERSE){
+            greyCounter --;
+          }
         }
         onGrey = true;
         respToGrey();
@@ -433,13 +473,17 @@ void respToGrey(void){
     ballsReleaseTimer.begin(ballsDeposited, BALL_RELEASE_TIME);
     runMotor(RIGHT,0);
     runMotor(LEFT,0);
-    targetGreyCounter = 0;
-    readingFromBeacons = true;
+    if(readingFromBeacons){
+      targetGreyCounter = 1;
+    } else {
+      targetGreyCounter = 3;
+    }
   }
   else if (greyCounter == 1 && targetGreyCounter == 1){ //PUSH DOWN A
     if (readingFromBeacons){
       changeState(STOP_WAIT_HAMMER);
       hammerTime.begin(doneHammering, BOT_HAMMER_TIME);
+      targetGreyCounter = 0;
     } else{  //first Time!!
       changeState(STOP_WAIT);
       ballsReleaseTimer.begin(ballsDeposited, BALL_RELEASE_TIME);
@@ -454,7 +498,15 @@ void respToGrey(void){
     hammerTime.begin(doneHammering, BOT_HAMMER_TIME);
     runMotor(RIGHT,0);
     runMotor(LEFT,0);
-    targetGreyCounter = 2;
+    if(readingFromBeacons){
+      targetGreyCounter = 2;
+    } else {
+      targetGreyCounter = 0;
+    }
+    if(!readingFromBeacons){
+      Serial.println("Now reading from beacons");  
+    }
+    readingFromBeacons = true;
   }
 }
 
@@ -464,7 +516,7 @@ void stopAndWaitHammer(void){
 }
 
 void useHammer(){
-//  hammerServo.write(178);
+  hammerServo.write(178);
 }
 
 void stopAndWait(void){
@@ -485,16 +537,17 @@ void doneHammering(void){
   //Change state again?
   hammerServo.write(15);
   changeState(REVERSE);
+  if(greyCounter == 3){
+    greyCounter = -1;
+  }
 }
 
 void ballsDeposited(void) {
   ballsReleaseTimer.end();
   if (!readingFromBeacons){
     changeState(FORWARD);
-    targetGreyCounter = 2;
   }else{
     changeState(REVERSE);
-    targetGreyCounter = 0;  //reset to get more balls
   }
   digitalWrite(LED_PIN, HIGH);
   ballServo.write(SERVO_CENTER-5);
@@ -505,7 +558,7 @@ bool testForStartupGarage(){
   //We want to encoder position to map to 
   double distance = encoder.getPosition();
   double distance_inches = map(distance,0,10,0,79.162); //Hard Coded translation of encoder distance to inches
-  if(distance_inches < BOOTY_BUMP_DIST && distance_inches != 0 && distance_inches != -0.0){
+  if(distance_inches < BOOTY_BUMP_DIST && distance_inches > 0.0){
     runMotor(RIGHT, 0);
     runMotor(LEFT, -70);
     changeState(BOOTY_BUMP);
@@ -531,7 +584,7 @@ void bootyBumpReturn(){
     reloadTimer.begin(doneReloading, RELOAD_TIME);
     runMotor(RIGHT,0);
     runMotor(LEFT,0);
-    targetGreyCounter = 2;
+    targetGreyCounter = 3;
     reload_toggled = false;
   }
 }
