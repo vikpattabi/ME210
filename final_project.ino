@@ -639,5 +639,3 @@ void finishGame(void){
   runMotor(RIGHT,0);
   runMotor(LEFT,0);
 }
-
-
