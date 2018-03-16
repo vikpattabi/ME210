@@ -1,3 +1,4 @@
+/*---------------Libraries to Include--------------------------*/
 #include <Servo.h>
 #include <RunningAverage.h>
 #include <Wire.h>
@@ -200,7 +201,7 @@ void loop() {
       finishGame();
       break;
     default:    // Should never get into an unhandled state
-      Serial.println("What is this I do not even..."); 
+      Serial.println("What is this I do not even...");
   }
 }
 
@@ -229,7 +230,7 @@ void calibrateBlack(void){
       }
       delay(10);
     }
-  
+
     right = analogRead(RIGHT_TAPE_BACK);
     left = analogRead(LEFT_TAPE_BACK);
     BLACK_BACK_THRESH = min(right, left) - 75;
@@ -252,7 +253,7 @@ void calibrateGrey(void){
     Serial.println(right);
     GREY_THRESH = right;
   }
-    
+
   while(true){
     if(!digitalRead(BUTTON_PIN)){
       break;
@@ -301,16 +302,16 @@ void checkBeaconValue(){
     Serial.println(frB);
     Serial.println();
   }
-  
+
   if(roundAStatus == 0 && roundBStatus == 1){
     //move to it and hammer
     Serial.println("Losing A, Winning B");
-    if(state == FORWARD){ 
-      if(greyCounter >= 1){ //we already passed it! 
+    if(state == FORWARD){
+      if(greyCounter >= 1){ //we already passed it!
         changeState(REVERSE);
       }
     }
-    else if(state == REVERSE){  
+    else if(state == REVERSE){
       if(greyCounter <= 1){  //won't ever get here because we shouldnt go past it
         changeState(FORWARD);
       }
@@ -321,12 +322,12 @@ void checkBeaconValue(){
     //move to it and hammer
     Serial.println("Losing B, Winning A");
 
-    if(state == FORWARD){  
+    if(state == FORWARD){
       if(greyCounter > 3){  //won't ever get here because we shouldnt go past it
         changeState(REVERSE);
       }
     }
-    else if(state == REVERSE){  
+    else if(state == REVERSE){
       if(greyCounter <= 3){  //won't ever get here because we shouldnt go past it
         changeState(FORWARD);
       }
@@ -348,19 +349,19 @@ void driveToBox(){
   if((right < BLACK_THRESH && left < BLACK_THRESH) ){
     //Both on white, go forward
     runMotor(RIGHT, 60);
-    runMotor(LEFT, 60); 
+    runMotor(LEFT, 60);
   } else if (right > BLACK_THRESH && left < BLACK_THRESH){
     //Turn right
     runMotor(LEFT, 60);
-    runMotor(RIGHT, 30); 
+    runMotor(RIGHT, 30);
   } else if (right < BLACK_THRESH && left > BLACK_THRESH){
     //Turn left
     runMotor(RIGHT, 60);
-    runMotor(LEFT, 30); 
+    runMotor(LEFT, 30);
   } else {      // we dont know what we're on so move forward slowly
     //Serial.println("we are in an unknown state");
     runMotor(RIGHT, 60);
-    runMotor(LEFT, 60); 
+    runMotor(LEFT, 60);
   }
 
   double distance = encoder.getPosition();
@@ -415,7 +416,7 @@ void runMotor(Motor_t mot, int speed){
       analogWrite(MOTOR2_RPWM, 0);
     } else {
       analogWrite(MOTOR2_LPWM, 0);
-      analogWrite(MOTOR2_RPWM, -speed); 
+      analogWrite(MOTOR2_RPWM, -speed);
     }
   } else if(mot == LEFT){
     if(speed > 0){
@@ -423,7 +424,7 @@ void runMotor(Motor_t mot, int speed){
       analogWrite(MOTOR1_RPWM, 0);
     } else {
       analogWrite(MOTOR1_LPWM, 0);
-      analogWrite(MOTOR1_RPWM, -speed); 
+      analogWrite(MOTOR1_RPWM, -speed);
     }
   }
 }
@@ -434,19 +435,19 @@ void moveForward(void){
   if((right < BLACK_THRESH && left < BLACK_THRESH) ){
     //Both on white, go forward
     runMotor(RIGHT, HIGH_SPEED);
-    runMotor(LEFT, HIGH_SPEED); 
+    runMotor(LEFT, HIGH_SPEED);
   } else if (right > BLACK_THRESH && left < BLACK_THRESH){
     //Turn right
     runMotor(LEFT, HIGH_SPEED);
-    runMotor(RIGHT, LOW_SPEED); 
+    runMotor(RIGHT, LOW_SPEED);
   } else if (right < BLACK_THRESH && left > BLACK_THRESH){
     //Turn left
     runMotor(RIGHT, HIGH_SPEED);
-    runMotor(LEFT, LOW_SPEED); 
+    runMotor(LEFT, LOW_SPEED);
   } else {      // we dont know what we're on so move forward slowly
     //Serial.println("we are in an unknown state");
     runMotor(RIGHT, HIGH_SPEED);
-    runMotor(LEFT, HIGH_SPEED); 
+    runMotor(LEFT, HIGH_SPEED);
   }
 }
 
@@ -460,16 +461,16 @@ void moveReverse(void){
   if((right < BLACK_BACK_THRESH && left < BLACK_BACK_THRESH) ){
     //Both on white, go forward
     runMotor(RIGHT, -HIGH_SPEED_BACK);
-    runMotor(LEFT, -HIGH_SPEED_BACK); 
+    runMotor(LEFT, -HIGH_SPEED_BACK);
   } else if (right > BLACK_BACK_THRESH && left < BLACK_BACK_THRESH){
     runMotor(LEFT, -HIGH_SPEED_BACK);
-    runMotor(RIGHT, -LOW_SPEED_BACK); 
+    runMotor(RIGHT, -LOW_SPEED_BACK);
   } else if (right < BLACK_BACK_THRESH && left > BLACK_BACK_THRESH){
     runMotor(RIGHT, -HIGH_SPEED_BACK);
-    runMotor(LEFT, -LOW_SPEED_BACK); 
+    runMotor(LEFT, -LOW_SPEED_BACK);
   } else {      // we dont know what we're on so move forward slowly
     runMotor(RIGHT, -HIGH_SPEED_BACK);
-    runMotor(LEFT, -HIGH_SPEED_BACK); 
+    runMotor(LEFT, -HIGH_SPEED_BACK);
   }
 
   if(readingFromBeacons){
@@ -493,7 +494,7 @@ void testForGrey(void){
         pastTenGrey = false;
       }
     }
-    
+
     if (pastTenGrey){ //Use rolling list of previous grey values to avoid erroneously detecting grey
       if(!onGrey){
         if(greyCounter == -1){
@@ -535,7 +536,7 @@ void respToGrey(void){
       hammerTime.begin(doneHammering, BOT_HAMMER_TIME);
       targetGreyCounter = 0;
 
-      Serial.println("Now reading from beacons");  
+      Serial.println("Now reading from beacons");
       readingFromBeacons = true;
     } else{  //first Time!!
       changeState(STOP_WAIT);
@@ -568,7 +569,7 @@ void stopAndWait(void){
 }
 
 void dropBall(void) {
-  ballServo.write(SERVO_CENTER - 35); 
+  ballServo.write(SERVO_CENTER - 35);
 }
 
 void doneHammering(void){
